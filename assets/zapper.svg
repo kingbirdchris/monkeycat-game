@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 300">
+  <defs>
+    <linearGradient id="zm" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#c7d4df"/>
+      <stop offset="50%" stop-color="#eef5fa"/>
+      <stop offset="100%" stop-color="#8fa2b3"/>
+    </linearGradient>
+    <linearGradient id="arc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#bff0ff"/>
+      <stop offset="50%" stop-color="#5ad6ff"/>
+      <stop offset="100%" stop-color="#2b9bff"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="4" width="48" height="34" rx="10" fill="url(#zm)" stroke="#27313b" stroke-width="4"/>
+  <circle cx="30" cy="21" r="9" fill="#ffd23f" stroke="#7a4b00" stroke-width="3"/>
+  <rect x="6" y="262" width="48" height="34" rx="10" fill="url(#zm)" stroke="#27313b" stroke-width="4"/>
+  <circle cx="30" cy="279" r="9" fill="#ffd23f" stroke="#7a4b00" stroke-width="3"/>
+  <path d="M30 36 L22 90 L38 140 L20 196 L36 250 L30 262" fill="none" stroke="url(#arc)" stroke-width="9" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M30 36 L22 90 L38 140 L20 196 L36 250 L30 262" fill="none" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
+</svg>
