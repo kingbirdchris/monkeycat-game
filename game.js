@@ -24,19 +24,20 @@ function resize(){
 window.addEventListener('resize', resize);
 resize();
 
-/* ---------- Tunables (ported & tuned from Unity controller) ------------- */
-const GROUND_Y   = VH - 70;          // floor collision line
+/* ---------- Tunables (gentle / floaty feel) ----------------------------- */
+const GROUND_Y   = VH - 70;
 const CEIL_Y     = 8;
-const PX_PER_M   = 26;               // distance scale (meters)
-const GRAVITY    = 2300;             // px/s^2 (Unity gravity 30 -> scaled)
-const THRUST     = 4600;             // px/s^2 upward while held (net +2300 up)
-const VY_UP_MAX  = -920;             // clamp rise speed (canvas y up = negative)
-const VY_DN_MAX  =  1180;            // clamp fall speed
-const INPUT_BUFFER = 0.12;           // s, matches Unity buffer
-const SPEED_BASE = 360;              // px/s forward scroll
-const SPEED_MAX  = 760;
-const SPEED_RAMP = 95;               // seconds to approach max
+const PX_PER_M   = 26;
+const GRAVITY    = 1500;             // px/s^2 down (gentle)
+const THRUST     = 3050;             // px/s^2 up while held (net +1550 up)
+const VY_UP_MAX  = -560;             // clamp rise speed
+const VY_DN_MAX  =  720;             // clamp fall speed (slow, forgiving)
+const INPUT_BUFFER = 0.12;
+const SPEED_BASE = 230;              // px/s forward at level 1
+const SPEED_MAX  = 560;
 const PLAYER_X   = VW * 0.27;
+const LEVEL_LEN  = 200;              // meters to clear a level
+const INTRO_TIME = 2.8;             // seconds of safe warm-up each run
 
 /* ---------- Asset loading ----------------------------------------------- */
 const ASSETS = {
@@ -110,7 +111,6 @@ const Audio2 = (()=>{
     }catch(e){}
     thrustNode=null;
   }
-  // Simple looping music: arpeggio over a couple chords
   const scale=[0,3,5,7,10,12]; const roots=[196,220,174.61,164.81];
   let step=0;
   function noteLoop(){
@@ -124,7 +124,6 @@ const Audio2 = (()=>{
     g.gain.linearRampToValueAtTime(0.5,ctxA.currentTime+0.02);
     g.gain.exponentialRampToValueAtTime(0.0001,ctxA.currentTime+0.32);
     o.connect(g); g.connect(musicGain); o.start(); o.stop(ctxA.currentTime+0.34);
-    // bass every 4
     if(step%4===0){
       const bo=ctxA.createOscillator(), bg=ctxA.createGain();
       bo.type='sine'; bo.frequency.value=root/2;
@@ -160,25 +159,24 @@ window.addEventListener('keydown', e=>{
 window.addEventListener('keyup', e=>{ if(e.code==='Space'||e.code==='ArrowUp') release(); });
 
 /* ---------- Game state -------------------------------------------------- */
-let state='menu';   // menu | play | paused | dying | over
+let state='menu';
 let now=0, lastT=0;
-let player, scroll, speed, distancePx, coins, runTime, timeScale, shakeT, shakeMag, deathT;
+let player, speed, distancePx, coins, runTime, timeScale, shakeT, shakeMag, deathT;
+let level=1, levelStartM=0, introT=0, hintVisible=false;
 let coinsBanked = +(localStorage.getItem('mc_coins')||0);
 let bestDist = +(localStorage.getItem('mc_best')||0);
+let bestLevel = +(localStorage.getItem('mc_level')||1);
 let missionsDone = +(localStorage.getItem('mc_missions')||0);
 let hazards=[], collectibles=[], powerups=[], particles=[], floats=[];
 let spawnTimer=0, missileTimer=0;
 let activePU = {shield:false, magnet:0, boost:0};
-let bg; // background controller
+let bg;
 
-/* ---------- Missions ---------------------------------------------------- */
+/* ---------- Missions (silent bonus goals) ------------------------------- */
 const MISSIONS = [
   {id:'collect_25', type:'coins',    target:25,  reward:40,  text:'Collect 25 banana-coins'},
-  {id:'survive_60', type:'time',     target:60,  reward:60,  text:'Stay airborne for 60 seconds'},
-  {id:'travel_500', type:'distance', target:500, reward:80,  text:'Travel 500 meters'},
-  {id:'collect_60', type:'coins',    target:60,  reward:90,  text:'Collect 60 banana-coins in one run'},
-  {id:'travel_1000',type:'distance', target:1000,reward:140, text:'Travel 1000 meters'},
-  {id:'nohit_300',  type:'distance', target:300, reward:70,  text:'Reach 300 m without dying'},
+  {id:'survive_45', type:'time',     target:45,  reward:60,  text:'Stay airborne for 45 seconds'},
+  {id:'travel_400', type:'distance', target:400, reward:80,  text:'Travel 400 meters'},
 ];
 let missionIdx = +(localStorage.getItem('mc_missionIdx')||0) % MISSIONS.length;
 function currentMission(){ return MISSIONS[missionIdx]; }
@@ -199,29 +197,23 @@ function checkMission(){
     localStorage.setItem('mc_coins', coinsBanked);
     missionIdx=(missionIdx+1)%MISSIONS.length;
     localStorage.setItem('mc_missionIdx', missionIdx);
-    showToast('🎯 Mission done! +'+m.reward+' coins');
+    showToast('Mission done! +'+m.reward+' coins');
     Audio2.power();
   }
 }
 
 /* ---------- Entities ---------------------------------------------------- */
 function makePlayer(){
-  return { x:PLAYER_X, y:VH*0.45, w:78, h:62, vy:0, alive:true, tilt:0, flameT:0 };
+  return { x:PLAYER_X, y:VH*0.42, w:96, h:80, vy:-240, alive:true, tilt:0, flameT:0 };
 }
 
 /* ---------- Procedural jungle/lab background ---------------------------- */
 function makeBG(){
-  // Multiple parallax layers built procedurally for a real jungle-lab feel.
   const rnd=(a,b)=>a+Math.random()*(b-a);
-  // far trees
   const farTrees=[]; for(let i=0;i<14;i++) farTrees.push({x:rnd(0,VW*2),h:rnd(160,300),w:rnd(60,120),hue:rnd(150,165)});
-  // mid canopy blobs
   const canopy=[]; for(let i=0;i<22;i++) canopy.push({x:rnd(0,VW*2),y:rnd(40,260),r:rnd(60,140),hue:rnd(125,150),sat:rnd(40,60),li:rnd(22,34)});
-  // foreground fronds / bushes
   const fg=[]; for(let i=0;i<16;i++) fg.push({x:rnd(0,VW*2),h:rnd(120,230),w:rnd(120,220),hue:rnd(95,120)});
-  // vines
   const vines=[]; for(let i=0;i<10;i++) vines.push({x:rnd(0,VW*2),len:rnd(120,300),sway:rnd(0,6.28)});
-  // overhanging top canopy clusters (frame the top like real jungle)
   const top=[]; for(let i=0;i<20;i++) top.push({x:rnd(0,VW*2),r:rnd(70,150),hue:rnd(120,140),li:rnd(16,26)});
   return {ox1:0,ox2:0,ox3:0,ox4:0, farTrees,canopy,fg,vines,top, t:0};
 }
@@ -231,54 +223,34 @@ function drawBG(dt){
   const sp = state==='play'? speed : 90;
   b.ox1 += sp*0.10*dt; b.ox2 += sp*0.25*dt; b.ox3 += sp*0.5*dt; b.ox4 += sp*0.9*dt;
   const wrap=VW*2;
-
-  // --- Sky gradient (warm jungle dawn) ---
   let g=ctx.createLinearGradient(0,0,0,VH);
   g.addColorStop(0,'#274a63'); g.addColorStop(0.4,'#3c6b6a'); g.addColorStop(0.72,'#6f9a5e'); g.addColorStop(1,'#3f6238');
   ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
-
-  // sun haze
   const sun=ctx.createRadialGradient(VW*0.7,150,20,VW*0.7,150,360);
   sun.addColorStop(0,'rgba(255,240,200,.55)'); sun.addColorStop(1,'rgba(255,240,200,0)');
   ctx.fillStyle=sun; ctx.fillRect(0,0,VW,VH);
-
-  // soft atmospheric haze (replaces hard mist band)
   const haze=ctx.createLinearGradient(0,VH*0.32,0,VH*0.72);
   haze.addColorStop(0,'rgba(214,228,210,0)'); haze.addColorStop(0.5,'rgba(214,228,210,0.16)'); haze.addColorStop(1,'rgba(214,228,210,0)');
   ctx.fillStyle=haze; ctx.fillRect(0,VH*0.32,VW,VH*0.4);
-
-  // --- Layer 1: far misty tree line ---
   for(const t of b.farTrees){
     let x=((t.x - b.ox1)%wrap+wrap)%wrap;
     drawFarTree(x, GROUND_Y, t.w, t.h, t.hue);
     if(x>VW) drawFarTree(x-wrap, GROUND_Y, t.w, t.h, t.hue);
   }
-
-  // --- Layer 2: mid canopy blobs ---
   for(const c of b.canopy){
     let x=((c.x - b.ox2)%wrap+wrap)%wrap;
     drawCanopy(x,c); if(x>VW-160) drawCanopy(x-wrap,c);
   }
-
-  // --- Layer 3: hanging vines ---
   for(const v of b.vines){
     let x=((v.x - b.ox3)%wrap+wrap)%wrap;
     drawVine(x,v,b.t); if(x>VW) drawVine(x-wrap,v,b.t);
   }
-
-  // --- Ground / runway ---
   drawGround(b.ox4);
-
-  // --- Layer 4: foreground bushes/fronds (drawn over ground) ---
   for(const f of b.fg){
     let x=((f.x - b.ox4)%wrap+wrap)%wrap;
     drawFrond(x,GROUND_Y+8,f.w,f.h,f.hue); if(x>VW) drawFrond(x-wrap,GROUND_Y+8,f.w,f.h,f.hue);
   }
-
-  // --- Overhanging top canopy (drawn last, frames the screen top) ---
   drawTopCanopy(b);
-
-  // --- Depth vignette ---
   ctx.save();
   const vig=ctx.createRadialGradient(VW*0.5,VH*0.5,VH*0.35,VW*0.5,VH*0.5,VH*0.85);
   vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(8,6,16,0.42)');
@@ -287,13 +259,10 @@ function drawBG(dt){
 }
 function drawTopCanopy(b){
   const wrap=VW*2;
-  // dark leafy band hanging from the top
   ctx.fillStyle='#14361f';
   ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(VW,0); ctx.lineTo(VW,40);
-  let sx=-((b.ox2*1.0)%140);
   for(let x=VW;x>=-140;x-=140){ const xx=x-((b.ox2)%140); ctx.quadraticCurveTo(xx-35,84,xx-70,44); }
   ctx.lineTo(0,40); ctx.closePath(); ctx.fill();
-  // hanging leaf clumps
   for(const t of b.top){
     let x=((t.x - b.ox2)%wrap+wrap)%wrap;
     drawTopClump(x,t); if(x>VW) drawTopClump(x-wrap,t);
@@ -310,9 +279,7 @@ function drawTopClump(x,t){
 }
 function drawFarTree(x,baseY,w,h,hue){
   ctx.fillStyle=`hsl(${hue},30%,30%)`;
-  // trunk
   ctx.fillRect(x-w*0.08, baseY-h*0.8, w*0.16, h*0.8);
-  // foliage clusters
   for(let i=0;i<4;i++){
     ctx.beginPath();
     ctx.ellipse(x+(i-1.5)*w*0.28, baseY-h*0.78+Math.sin(i)*14, w*0.42, h*0.32, 0,0,7);
@@ -322,7 +289,6 @@ function drawFarTree(x,baseY,w,h,hue){
 function drawCanopy(x,c){
   ctx.save();
   ctx.fillStyle=`hsl(${c.hue},${c.sat}%,${c.li}%)`;
-  // clumped leafy circle
   for(let i=0;i<5;i++){
     const a=i/5*6.28;
     ctx.beginPath();
@@ -330,7 +296,6 @@ function drawCanopy(x,c){
     ctx.fill();
   }
   ctx.beginPath(); ctx.ellipse(x,c.y,c.r*0.7,c.r*0.55,0,0,7); ctx.fill();
-  // highlight
   ctx.fillStyle=`hsla(${c.hue},${c.sat}%,${c.li+14}%,0.5)`;
   ctx.beginPath(); ctx.ellipse(x-c.r*0.2,c.y-c.r*0.2,c.r*0.4,c.r*0.3,0,0,7); ctx.fill();
   ctx.restore();
@@ -341,22 +306,18 @@ function drawVine(x,v,t){
   const sway=Math.sin(t*1.2+v.sway)*16;
   ctx.beginPath(); ctx.moveTo(x,0);
   ctx.quadraticCurveTo(x+sway*0.5, v.len*0.5, x+sway, v.len); ctx.stroke();
-  // leaves
   ctx.fillStyle='hsl(120,40%,34%)';
   for(let i=1;i<=3;i++){ const yy=v.len*i/4; const xx=x+sway*(i/3);
     ctx.beginPath(); ctx.ellipse(xx,yy,14,7,0.6,0,7); ctx.fill(); }
   ctx.restore();
 }
 function drawGround(ox){
-  // dark soil base
   let g=ctx.createLinearGradient(0,GROUND_Y,0,VH);
   g.addColorStop(0,'#3a2a1c'); g.addColorStop(1,'#221710');
   ctx.fillStyle=g; ctx.fillRect(0,GROUND_Y,VW,VH-GROUND_Y);
-  // grassy top edge
   ctx.fillStyle='#3f7a3a'; ctx.fillRect(0,GROUND_Y-6,VW,12);
   ctx.fillStyle='#4f9444';
-  const wrap=120;
-  let sx=-((ox)%wrap);
+  const wrap=120; let sx=-((ox)%wrap);
   for(let x=sx;x<VW;x+=wrap){
     ctx.beginPath();
     ctx.moveTo(x,GROUND_Y-6);
@@ -364,7 +325,6 @@ function drawGround(ox){
     ctx.quadraticCurveTo(x+90,GROUND_Y-20,x+120,GROUND_Y-6);
     ctx.fill();
   }
-  // soil specks
   ctx.fillStyle='rgba(255,255,255,0.04)';
   let s2=-((ox*1.0)%60);
   for(let x=s2;x<VW;x+=60){ ctx.fillRect(x, GROUND_Y+24, 22, 4); ctx.fillRect(x+30, GROUND_Y+44, 14, 4); }
@@ -372,9 +332,7 @@ function drawGround(ox){
 function drawFrond(x,baseY,w,h,hue){
   ctx.save();
   ctx.fillStyle=`hsl(${hue},45%,24%)`;
-  // bush base
   ctx.beginPath(); ctx.ellipse(x,baseY,w*0.5,h*0.32,0,Math.PI,0); ctx.fill();
-  // big fronds
   ctx.strokeStyle=`hsl(${hue},50%,30%)`; ctx.lineWidth=10; ctx.lineCap='round';
   for(let i=0;i<5;i++){
     const a=-Math.PI*0.5 + (i-2)*0.42;
@@ -392,52 +350,66 @@ function drawFrond(x,baseY,w,h,hue){
   ctx.restore();
 }
 
+/* ---------- Difficulty by level ----------------------------------------- */
+function levelSpeed(L){ return Math.min(SPEED_MAX, SPEED_BASE + (L-1)*38); }
+function spawnIntervalForLevel(L){
+  const base = Math.max(0.95, 2.6 - (L-1)*0.16);
+  return base * (0.85 + Math.random()*0.35);
+}
+function levelDiff(L){ return Math.min((L-1)/8, 1); }
+
 /* ---------- Spawning ---------------------------------------------------- */
-function spawnInterval(){
-  // Unity: base 1.75 -> min 0.65 over ramp, modulated by progress
-  const progress = Math.min(runTime/110, 1);
-  const eased = progress*progress*(3-2*progress);
-  let intv = 1.75 - (1.75-0.62)*eased;
-  return intv * (0.85 + Math.random()*0.4);
-}
-function diff(){ return Math.min(distancePx/PX_PER_M/700, 1); } // 0..1 skill ramp
-
 function spawnSet(){
-  const d=diff();
+  const L=level;
+  if(L<=1){
+    if(Math.random()<0.55){ spawnCoinArc(); return; }
+    spawnZapper(0, false);
+    if(Math.random()<0.85) spawnCoinArc();
+    if(Math.random()<0.10) spawnPowerup();
+    return;
+  }
+  const d=levelDiff(L);
   const r=Math.random();
-  if(r < 0.40)            spawnZapper(d);
-  else if(r < 0.66)       spawnLaserGate(d);
-  else if(r < 0.82)       spawnZapperPair(d);
-  else                    spawnZapper(d);
-
-  // coins arc
-  if(Math.random() < 0.85) spawnCoinArc();
-  // power-up occasionally (more when struggling early)
-  if(Math.random() < (0.10 + 0.10*(1-d))) spawnPowerup();
+  if(L===2){
+    spawnZapper(d, Math.random()<0.5);
+  } else if(L===3){
+    if(r<0.6) spawnZapper(d, Math.random()<0.5); else spawnLaserGate(d);
+  } else if(L===4){
+    if(r<0.45) spawnZapper(d,Math.random()<0.5);
+    else if(r<0.75) spawnLaserGate(d);
+    else spawnZapperPair(d);
+  } else {
+    if(r<0.34) spawnZapper(d,Math.random()<0.5);
+    else if(r<0.58) spawnLaserGate(d);
+    else if(r<0.82) spawnZapperPair(d);
+    else spawnZapper(d,Math.random()<0.5);
+  }
+  if(Math.random()<0.8) spawnCoinArc();
+  if(Math.random() < (0.10 + 0.08*(1-d))) spawnPowerup();
 }
-function spawnZapper(d){
-  const h = 180 + Math.random()*180;
-  const gap = 230 - d*60;
-  const fromTop = Math.random()<0.5;
-  const y = fromTop ? (CEIL_Y + Math.random()*(VH*0.35)) : (GROUND_Y - h - Math.random()*(VH*0.25));
-  hazards.push({type:'zapper', x:VW+60, y, w:46, h, vx:0, rot:0, hit:true});
+function spawnZapper(d, fromTop){
+  if(fromTop===undefined) fromTop=Math.random()<0.5;
+  const minGap = 330 - d*150;
+  let h = 110 + d*150 + Math.random()*70;
+  h = Math.max(80, Math.min(h, (GROUND_Y-CEIL_Y)-minGap));
+  const y = fromTop ? CEIL_Y : (GROUND_Y - h);
+  hazards.push({type:'zapper', x:VW+60, y, w:46, h, hit:true});
 }
 function spawnZapperPair(d){
+  const gap = 320 - d*140;
   const total=GROUND_Y-CEIL_Y;
-  const gap = 220 - d*70;
-  const gapY = CEIL_Y + 120 + Math.random()*(total-gap-240);
+  const gapY = CEIL_Y + 90 + Math.random()*Math.max(40,(total-gap-180));
   hazards.push({type:'zapper', x:VW+60, y:CEIL_Y, w:46, h:gapY-CEIL_Y, hit:true});
   hazards.push({type:'zapper', x:VW+60, y:gapY+gap, w:46, h:GROUND_Y-(gapY+gap), hit:true});
 }
 function spawnLaserGate(d){
-  // horizontal laser that pulses on/off
-  const y = CEIL_Y+120 + Math.random()*(GROUND_Y-CEIL_Y-260);
-  hazards.push({type:'laser', x:VW+40, y, w:340, h:14, cycle:1.6-d*0.5, t:Math.random()*1.6, on:true, hit:true});
+  const y = CEIL_Y+140 + Math.random()*(GROUND_Y-CEIL_Y-300);
+  hazards.push({type:'laser', x:VW+40, y, w:300+Math.random()*120, h:14, cycle:1.9-d*0.6, t:Math.random()*1.9, on:true, hit:true});
 }
 function spawnCoinArc(){
   const n = 4+Math.floor(Math.random()*5);
-  const baseY = CEIL_Y+120 + Math.random()*(GROUND_Y-CEIL_Y-260);
-  const amp = 60+Math.random()*120, dir=Math.random()<0.5?1:-1;
+  const baseY = CEIL_Y+130 + Math.random()*(GROUND_Y-CEIL_Y-280);
+  const amp = 50+Math.random()*110, dir=Math.random()<0.5?1:-1;
   const sx=VW+80, sp=64;
   for(let i=0;i<n;i++){
     const y = baseY + Math.sin(i/(n-1)*Math.PI)*amp*dir;
@@ -447,13 +419,10 @@ function spawnCoinArc(){
 function spawnPowerup(){
   const types=['shield','magnet','boost'];
   const t=types[Math.floor(Math.random()*types.length)];
-  const y=CEIL_Y+120 + Math.random()*(GROUND_Y-CEIL_Y-240);
+  const y=CEIL_Y+130 + Math.random()*(GROUND_Y-CEIL_Y-260);
   powerups.push({x:VW+80, y, r:26, type:t, taken:false});
 }
-function spawnMissileWarn(){
-  // missile telegraphs at player's current y, then flies in
-  missiles_pending.push({y: player.y, t:1.1});
-}
+function spawnMissileWarn(){ missiles_pending.push({y: player.y, t:1.2}); }
 let missiles_pending=[];
 
 /* ---------- Particles --------------------------------------------------- */
@@ -468,27 +437,29 @@ function floatText(x,y,txt,color){ floats.push({x,y,txt,color,age:0,life:0.9}); 
 /* ---------- Lifecycle --------------------------------------------------- */
 function startRun(){
   player=makePlayer();
-  scroll=0; speed=SPEED_BASE; distancePx=0; coins=0; runTime=0; timeScale=1;
+  speed=levelSpeed(1); distancePx=0; coins=0; runTime=0; timeScale=1;
   shakeT=0; shakeMag=0; deathT=0;
+  level=1; levelStartM=0; introT=INTRO_TIME;
   hazards=[]; collectibles=[]; powerups=[]; particles=[]; floats=[]; missiles_pending=[];
-  spawnTimer=0.8; missileTimer=14;
+  spawnTimer=1.0; missileTimer=10;
   activePU={shield:false, magnet:0, boost:0};
   missionCompletedThisRun=false;
   bg=makeBG();
   state='play';
   show('hud',true); el('pauseBtn').classList.remove('hidden');
   hideAllOverlays();
+  showHint(true);
   Audio2.musicStart();
   if(pressing) Audio2.thrustOn();
   updateHUD();
 }
 function pauseGame(){ if(state!=='play')return; state='paused'; Audio2.thrustOff(); Audio2.musicStop(); show('pause',true); }
 function resumeGame(){ if(state!=='paused')return; state='play'; show('pause',false); Audio2.musicStart(); lastT=performance.now(); }
-function quitToMenu(){ state='menu'; Audio2.thrustOff(); Audio2.musicStop(); hideAllOverlays(); show('menu',true); show('hud',false); el('pauseBtn').classList.add('hidden'); refreshMenu(); }
+function quitToMenu(){ state='menu'; Audio2.thrustOff(); Audio2.musicStop(); showHint(false); hideAllOverlays(); show('menu',true); show('hud',false); el('pauseBtn').classList.add('hidden'); refreshMenu(); }
 
 function die(){
   if(state!=='play') return;
-  state='dying'; deathT=0; player.alive=false;
+  state='dying'; deathT=0; player.alive=false; showHint(false);
   Audio2.thrustOff(); Audio2.boom();
   shake(16,0.5);
   burst(player.x, player.y, '#ff9f1a', 26, 420);
@@ -502,64 +473,65 @@ function endRun(){
   localStorage.setItem('mc_coins', coinsBanked);
   let isBest=false;
   if(dm>bestDist){ bestDist=dm; localStorage.setItem('mc_best',bestDist); isBest=true; }
+  if(level>bestLevel){ bestLevel=level; localStorage.setItem('mc_level',bestLevel); }
   el('oDist').textContent=dm+' m';
   el('oCoins').textContent=coins;
-  el('oBest').textContent=bestDist+' m';
-  el('overBadge').textContent = isBest ? 'NEW BEST!' : 'RUN COMPLETE';
-  const m=currentMission();
-  el('oMission').innerHTML = missionCompletedThisRun
-    ? '<span class="new">Mission complete!</span> Next: '+m.text
-    : 'Mission: <b>'+m.text+'</b> — '+Math.floor(missionProgress())+'/'+m.target;
+  el('oLevel').textContent=level;
+  el('overBadge').textContent = isBest ? 'NEW BEST!' : ('LEVEL '+level+' REACHED');
+  el('oMission').innerHTML = 'Tip: <b>hold longer to climb</b>, tap lightly to hover. Stay near the middle and weave through gaps.';
   show('over',true);
 }
 
 /* ---------- Update ------------------------------------------------------ */
 function update(dt){
-  if(state==='play' || state==='dying'){
-    runTime += dt; // real run time
-  }
+  if(state==='play' || state==='dying'){ runTime += dt; }
   if(state==='play'){
-    // forward speed ramp
-    speed = SPEED_BASE + (SPEED_MAX-SPEED_BASE)*(1-Math.exp(-runTime/SPEED_RAMP));
-    if(activePU.boost>0) speed *= 1.45;
+    const inIntro = introT>0;
+    if(inIntro){ introT-=dt; if(introT<=0) showHint(false); }
+
+    const tgt = levelSpeed(level)*(activePU.boost>0?1.45:1);
+    speed += (tgt-speed)*Math.min(1,dt*2);
     distancePx += speed*dt;
 
-    // player physics
+    const m=distancePx/PX_PER_M;
+    if(m - levelStartM >= LEVEL_LEN){
+      level++; levelStartM += LEVEL_LEN;
+      showBanner('LEVEL '+level);
+      Audio2.power(); shake(5,0.25);
+    }
+
     const buffered = bufferActive && (now-lastPressTime)<=INPUT_BUFFER;
     const thrust = pressing || buffered;
     if(thrust) bufferActive=false;
     player.vy += (thrust? (GRAVITY - THRUST) : GRAVITY)*dt;
     player.vy = Math.max(VY_UP_MAX, Math.min(VY_DN_MAX, player.vy));
     player.y += player.vy*dt;
-    player.tilt += (((thrust?-0.34:0.30)) - player.tilt)*Math.min(1,dt*8);
+    player.tilt += (((thrust?-0.32:0.26)) - player.tilt)*Math.min(1,dt*8);
     player.flameT += dt;
 
-    // ceiling / ground
     if(player.y < CEIL_Y+player.h*0.4){ player.y=CEIL_Y+player.h*0.4; player.vy=Math.max(player.vy,0); }
     if(player.y > GROUND_Y-player.h*0.42){
       player.y=GROUND_Y-player.h*0.42;
-      if(!activePU.boost){ die(); }
-      else player.vy=Math.min(player.vy,0);
+      if(inIntro || activePU.boost>0){ player.vy=Math.min(player.vy,-120); }
+      else { die(); }
     }
-    // thrust particles
     if(thrust && Math.random()<0.9){
-      particles.push({x:player.x-26, y:player.y+18, vx:-speed*0.4-Math.random()*60, vy:60+Math.random()*120,
+      particles.push({x:player.x-30, y:player.y+20, vx:-speed*0.4-Math.random()*60, vy:60+Math.random()*120,
         life:0.4, age:0, color: Math.random()<0.5?'#ffd23f':'#ff6a00', r:3+Math.random()*4});
     }
 
-    // power-up timers
     if(activePU.magnet>0) activePU.magnet-=dt;
     if(activePU.boost>0){ activePU.boost-=dt; if(Math.random()<0.6) burst(player.x,player.y,'#5ad6ff',1,120); }
 
-    // spawn hazards
-    spawnTimer-=dt;
-    if(spawnTimer<=0){ spawnSet(); spawnTimer=spawnInterval(); }
-    // missiles
-    missileTimer-=dt;
-    if(missileTimer<=0 && diff()>0.12){ spawnMissileWarn(); missileTimer = 8+Math.random()*7; }
+    if(!inIntro){
+      spawnTimer-=dt;
+      if(spawnTimer<=0){ spawnSet(); spawnTimer=spawnIntervalForLevel(level); }
+      missileTimer-=dt;
+      if(missileTimer<=0 && level>=5){ spawnMissileWarn(); missileTimer = 8+Math.random()*7; }
+    }
     for(let i=missiles_pending.length-1;i>=0;i--){
       const mp=missiles_pending[i]; mp.t-=dt;
-      if(mp.t<=0){ hazards.push({type:'missile', x:VW+80, y:mp.y, w:74, h:30, vx:-(speed+260), hit:true, hy:mp.y}); missiles_pending.splice(i,1); }
+      if(mp.t<=0){ hazards.push({type:'missile', x:VW+80, y:mp.y, w:74, h:30, vx:-(speed+240), hit:true}); missiles_pending.splice(i,1); }
     }
 
     moveWorld(dt);
@@ -568,13 +540,11 @@ function update(dt){
     updateHUD();
   }
   else if(state==='dying'){
-    timeScale = 0.25;
-    deathT += dt; // dt already scaled below
+    deathT += dt;
     moveWorld(dt*0.4);
-    if(deathT>0.7){ timeScale=1; endRun(); }
+    if(deathT>0.7){ endRun(); }
   }
 
-  // particles & floats always animate
   for(let i=particles.length-1;i>=0;i--){
     const p=particles[i]; p.age+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=400*dt;
     if(p.age>=p.life) particles.splice(i,1);
@@ -598,7 +568,6 @@ function moveWorld(dt){
     } else c.x-=dx;
   }
   for(const p of powerups) p.x-=dx;
-  // cull
   hazards=hazards.filter(h=> h.x+(h.w||0) > -120 && h.x < VW+400);
   collectibles=collectibles.filter(c=> !c.taken && c.x>-60);
   powerups=powerups.filter(p=> !p.taken && p.x>-60);
@@ -608,8 +577,7 @@ function aabb(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh 
 
 function handleCollisions(){
   if(!player.alive) return;
-  const px=player.x-player.w*0.32, py=player.y-player.h*0.34, pw=player.w*0.64, ph=player.h*0.68;
-  // hazards
+  const px=player.x-player.w*0.30, py=player.y-player.h*0.30, pw=player.w*0.60, ph=player.h*0.60;
   for(const h of hazards){
     if(!h.hit) continue;
     let hit=false;
@@ -622,7 +590,6 @@ function handleCollisions(){
       die(); return;
     }
   }
-  // coins
   for(const c of collectibles){
     if(c.taken) continue;
     if(Math.hypot(c.x-player.x,c.y-player.y) < c.r+player.w*0.34){
@@ -630,7 +597,6 @@ function handleCollisions(){
       burst(c.x,c.y,'#ffd23f',6,180); floatText(c.x,c.y,'+1','#ffd23f');
     }
   }
-  // powerups
   for(const p of powerups){
     if(p.taken) continue;
     if(Math.hypot(p.x-player.x,p.y-player.y) < p.r+player.w*0.36){
@@ -641,9 +607,9 @@ function handleCollisions(){
 }
 let coinsTotalRun=0;
 function applyPU(t){
-  if(t==='shield'){ activePU.shield=true; showToast('🛡️ Shield up'); }
-  else if(t==='magnet'){ activePU.magnet=8; showToast('🧲 Coin magnet!'); }
-  else if(t==='boost'){ activePU.boost=3.5; showToast('⚡ Overcharge!'); shake(6,0.2); }
+  if(t==='shield'){ activePU.shield=true; showToast('Shield up'); }
+  else if(t==='magnet'){ activePU.magnet=8; showToast('Coin magnet!'); }
+  else if(t==='boost'){ activePU.boost=3.5; showToast('Overcharge!'); shake(6,0.2); }
 }
 function shake(mag,t){ shakeMag=mag; shakeT=t; }
 
@@ -654,25 +620,20 @@ function render(){
   if(shakeT>0){ const m=shakeMag*(shakeT); ctx.translate((Math.random()-0.5)*m,(Math.random()-0.5)*m); }
   drawBG(renderDt);
 
-  // collectibles
   for(const c of collectibles){
     if(c.taken) continue;
     const s=Math.sin(now*4+c.x*0.05)*0.12+1;
     drawImgC(img.coin, c.x, c.y, c.r*2.1*s, c.r*2.1);
   }
-  // powerups
   for(const p of powerups){
     if(p.taken) continue;
     const im = p.type==='shield'?img.shield : p.type==='magnet'?img.magnet : img.boost;
     const s=Math.sin(now*3+p.x*0.04)*0.08+1;
-    // glow ring
     ctx.save(); ctx.globalAlpha=0.4; ctx.fillStyle=p.type==='boost'?'#ffb000':p.type==='magnet'?'#ff4d4d':'#5ad6ff';
     ctx.beginPath(); ctx.arc(p.x,p.y,p.r*1.5,0,7); ctx.fill(); ctx.restore();
     drawImgC(im, p.x, p.y, p.r*2.2*s, p.r*2.2*s);
   }
-  // hazards
   for(const h of hazards) drawHazard(h);
-  // missile warnings
   for(const mp of missiles_pending){
     const a=0.4+0.4*Math.sin(now*16);
     ctx.save(); ctx.globalAlpha=a; ctx.fillStyle='#ff3b3b';
@@ -680,24 +641,20 @@ function render(){
     ctx.font='bold 22px sans-serif'; ctx.fillText('!',VW-50,mp.y+8); ctx.restore();
   }
 
-  // player
   if(player && (state==='play'||state==='dying')) drawPlayer();
 
-  // particles
   for(const p of particles){
     const a=1-p.age/p.life;
     ctx.globalAlpha=a; ctx.fillStyle=p.color;
     ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
   }
   ctx.globalAlpha=1;
-  // floats
   ctx.textAlign='center';
   for(const f of floats){ ctx.globalAlpha=1-f.age/f.life; ctx.fillStyle=f.color; ctx.font='bold 22px Trebuchet MS, sans-serif'; ctx.fillText(f.txt,f.x,f.y); }
   ctx.globalAlpha=1; ctx.textAlign='left';
 
   ctx.restore();
 
-  // loading veil
   if(!ready){
     ctx.fillStyle='#0e0a14'; ctx.fillRect(0,0,VW,VH);
     ctx.fillStyle='#ffd23f'; ctx.font='bold 28px Trebuchet MS, sans-serif'; ctx.textAlign='center';
@@ -710,7 +667,6 @@ function drawHazard(h){
   if(h.type==='zapper'){
     drawImgC(img.zapper, h.x+h.w/2, h.y+h.h/2, h.w, h.h);
   } else if(h.type==='laser'){
-    // emitters
     drawImgC(img.laser, h.x, h.y, 46,46);
     drawImgC(img.laser, h.x+h.w, h.y, 46,46);
     if(h.on){
@@ -734,17 +690,15 @@ function drawPlayer(){
   ctx.save();
   ctx.translate(player.x,player.y);
   ctx.rotate(player.tilt);
-  // shield aura
   if(activePU.shield){ ctx.save(); ctx.globalAlpha=0.4+0.15*Math.sin(now*6); ctx.strokeStyle='#5ad6ff'; ctx.lineWidth=5;
-    ctx.beginPath(); ctx.arc(0,0,player.w*0.62,0,7); ctx.stroke(); ctx.restore(); }
-  // jetpack flame when thrusting
+    ctx.beginPath(); ctx.arc(0,0,player.w*0.56,0,7); ctx.stroke(); ctx.restore(); }
   const thrust = (pressing || (bufferActive && (now-lastPressTime)<=INPUT_BUFFER));
   if(thrust && state==='play'){
     const f=Math.abs(Math.sin(player.flameT*40))*0.4+0.8;
-    ctx.save(); ctx.translate(-22,20);
-    const g=ctx.createLinearGradient(0,0,0,46*f);
+    ctx.save(); ctx.translate(-30,24);
+    const g=ctx.createLinearGradient(0,0,0,50*f);
     g.addColorStop(0,'#fff'); g.addColorStop(0.4,'#ffd23f'); g.addColorStop(1,'rgba(255,60,0,0)');
-    ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(10,0); ctx.lineTo(0,46*f); ctx.fill();
+    ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(-11,0); ctx.lineTo(11,0); ctx.lineTo(0,50*f); ctx.fill();
     ctx.restore();
   }
   const w=player.w, h=player.h;
@@ -756,17 +710,18 @@ function drawPlayer(){
 function el(id){ return document.getElementById(id); }
 function show(id,on){ el(id).classList.toggle('hidden',!on); }
 function hideAllOverlays(){ ['menu','howto','pause','over'].forEach(o=>show(o,false)); }
+function showHint(on){ hintVisible=on; el('introHint').classList.toggle('hidden',!on); }
+function showBanner(t){ const e=el('banner'); e.textContent=t; e.classList.remove('show'); void e.offsetWidth; e.classList.add('show'); }
 function updateHUD(){
   el('hudCoins').textContent=coins;
-  el('hudDist').textContent=Math.floor(distancePx/PX_PER_M)+' m';
-  const m=currentMission();
-  el('hudMissionTxt').textContent=m.text;
-  el('hudMissionFill').style.width=(missionProgress()/m.target*100)+'%';
-  // active power-up readout
+  const m=distancePx/PX_PER_M;
+  el('hudDist').textContent=Math.floor(m)+' m';
+  el('hudMissionTxt').textContent='Level '+level;
+  el('hudMissionFill').style.width=Math.min(100,(m-levelStartM)/LEVEL_LEN*100)+'%';
   let pu='';
-  if(activePU.boost>0) pu='⚡ '+activePU.boost.toFixed(1)+'s';
-  else if(activePU.magnet>0) pu='🧲 '+activePU.magnet.toFixed(1)+'s';
-  else if(activePU.shield) pu='🛡️ Shield';
+  if(activePU.boost>0) pu='Overcharge '+activePU.boost.toFixed(1)+'s';
+  else if(activePU.magnet>0) pu='Magnet '+activePU.magnet.toFixed(1)+'s';
+  else if(activePU.shield) pu='Shield ready';
   el('hudPU').style.display = pu?'flex':'none'; el('hudPUtxt').textContent=pu;
 }
 let toastT=null;
@@ -774,7 +729,7 @@ function showToast(t){ const e=el('toast'); e.textContent=t; e.classList.add('sh
 function refreshMenu(){
   el('mBest').textContent=bestDist+' m';
   el('mCoins').textContent=coinsBanked;
-  el('mMissions').textContent=missionsDone;
+  el('mLevel').textContent=bestLevel;
 }
 
 /* ---------- Main loop --------------------------------------------------- */
