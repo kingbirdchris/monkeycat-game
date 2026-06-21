@@ -226,6 +226,7 @@ function makeBG(){
   return {ox1:0,ox2:0,ox3:0,ox4:0, farTrees,canopy,fg,vines,top, t:0};
 }
 function drawBG(dt){
+  if(!bg) bg=makeBG();
   const b=bg; b.t+=dt;
   const sp = state==='play'? speed : 90;
   b.ox1 += sp*0.10*dt; b.ox2 += sp*0.25*dt; b.ox3 += sp*0.5*dt; b.ox4 += sp*0.9*dt;
@@ -779,15 +780,14 @@ function refreshMenu(){
 /* ---------- Main loop --------------------------------------------------- */
 let renderDt=0;
 function loop(t){
+  requestAnimationFrame(loop);
   if(!lastT) lastT=t;
   let dt=(t-lastT)/1000; lastT=t;
   dt=Math.min(dt,0.05);
   now+=dt;
   const sdt = (state==='dying')? dt*0.3 : dt;
   renderDt=sdt;
-  if(ready) update(sdt);
-  render();
-  requestAnimationFrame(loop);
+  try{ if(ready) update(sdt); render(); }catch(err){ if(!loop._warned){ console.error('loop error', err); loop._warned=true; } }
 }
 requestAnimationFrame(loop);
 
