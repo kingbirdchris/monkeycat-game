@@ -5,36 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
 <meta name="theme-color" content="#1c1424"/>
 <title>MonkeyCat: Jetpack Mischief</title>
-<meta name="description" content="Help MonkeyCat blast out of the jungle lab on a stolen jetpack. Dodge zappers, grab banana-coins, fly as far as you can. A free endless runner."/>
+<meta name="description" content="A cat runs, a monkey rides shotgun and swings them across pits with its tail. Jump, double-jump, grab vines, hoard banana-coins. A free endless platformer."/>
 <link rel="icon" href="assets/coin.svg"/>
 <style>
-  :root{
-    --gold:#ffd23f; --gold2:#ff9f1a; --ink:#1b171b; --panel:#241b30; --panel2:#322543;
-    --cream:#f8f0df; --accent:#5ad6ff;
-  }
+  :root{ --gold:#ffd23f; --gold2:#ff9f1a; --cream:#f8f0df; --accent:#5ad6ff; }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;overflow:hidden;background:#0e0a14;font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;color:var(--cream)}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,#2a1d3a,#0e0a14)}
   canvas{display:block;touch-action:none;background:#0e0a14;box-shadow:0 0 60px rgba(0,0,0,.6)}
   .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:24px;z-index:10;
-    background:radial-gradient(circle at 50% 35%,rgba(58,40,80,.86),rgba(14,10,20,.94));
+    text-align:center;padding:24px;z-index:10;background:radial-gradient(circle at 50% 35%,rgba(58,40,80,.86),rgba(14,10,20,.94));
     backdrop-filter:blur(3px);transition:opacity .25s;overflow-y:auto}
   .hidden{display:none!important}
-  .title{font-size:clamp(34px,8vw,76px);font-weight:900;letter-spacing:1px;margin:0;line-height:.95;
-    color:#fff;text-shadow:0 4px 0 #7a3000,0 0 26px rgba(255,159,26,.55)}
+  .title{font-size:clamp(34px,8vw,76px);font-weight:900;letter-spacing:1px;margin:0;line-height:.95;color:#fff;text-shadow:0 4px 0 #7a3000,0 0 26px rgba(255,159,26,.55)}
   .title .k{color:var(--gold)}
-  .sub{font-size:clamp(13px,3.4vw,19px);color:#e7d8c2;margin:10px 0 22px;max-width:620px;opacity:.92}
-  .hero-img{width:clamp(140px,32vw,230px);margin:4px 0 6px;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-12px) rotate(3deg)}}
-  .btn{appearance:none;border:0;cursor:pointer;font-family:inherit;font-weight:800;
-    font-size:clamp(17px,4.4vw,23px);color:#3a1500;
-    background:linear-gradient(180deg,#ffe471,#ff9f1a);padding:15px 46px;border-radius:999px;
-    box-shadow:0 6px 0 #b85c00,0 10px 22px rgba(0,0,0,.45);transition:transform .08s,box-shadow .08s;
-    letter-spacing:.5px}
+  .sub{font-size:clamp(13px,3.4vw,19px);color:#e7d8c2;margin:10px 0 22px;max-width:640px;opacity:.92}
+  .hero-img{width:clamp(160px,36vw,260px);margin:4px 0 6px;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5));animation:bob 2.4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-12px) rotate(2deg)}}
+  .btn{appearance:none;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:clamp(17px,4.4vw,23px);color:#3a1500;
+    background:linear-gradient(180deg,#ffe471,#ff9f1a);padding:15px 46px;border-radius:999px;box-shadow:0 6px 0 #b85c00,0 10px 22px rgba(0,0,0,.45);transition:transform .08s,box-shadow .08s;letter-spacing:.5px}
   .btn:active{transform:translateY(4px);box-shadow:0 2px 0 #b85c00,0 6px 14px rgba(0,0,0,.45)}
-  .btn.sec{background:linear-gradient(180deg,#5e7d98,#3c4c5a);color:#eaf3fa;box-shadow:0 6px 0 #1f2a33,0 10px 22px rgba(0,0,0,.4);
-    font-size:clamp(14px,3.6vw,17px);padding:12px 30px}
+  .btn.sec{background:linear-gradient(180deg,#5e7d98,#3c4c5a);color:#eaf3fa;box-shadow:0 6px 0 #1f2a33,0 10px 22px rgba(0,0,0,.4);font-size:clamp(14px,3.6vw,17px);padding:12px 30px}
   .btn.sec:active{box-shadow:0 2px 0 #1f2a33}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin-top:8px}
   .stats{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;margin:18px 0 6px}
@@ -45,16 +36,13 @@
   .how{font-size:14px;line-height:1.7;color:#e7d8c2;text-align:left;max-width:520px}
   .how b{color:var(--gold)}
   .how .big{display:block;font-size:16px;color:#fff;margin:2px 0 10px;font-weight:800}
-  .badge{display:inline-block;background:rgba(90,214,255,.16);border:1px solid rgba(90,214,255,.4);color:var(--accent);
-    padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:6px}
+  .badge{display:inline-block;background:rgba(90,214,255,.16);border:1px solid rgba(90,214,255,.4);color:var(--accent);padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:6px}
   .ribbon{font-size:clamp(20px,5.5vw,30px);font-weight:900;color:#fff;margin:2px 0 0}
   .small{font-size:12px;color:#a99c8b;margin-top:18px}
   .mission-line{font-size:clamp(14px,3.6vw,17px);color:#e7d8c2;margin:10px 0 2px}
   .mission-line b{color:var(--accent)}
   .new{color:#7CFF8A;font-weight:800}
-  #hud{position:fixed;top:0;left:0;right:0;z-index:5;pointer-events:none;
-    display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;
-    font-weight:800;text-shadow:0 2px 4px rgba(0,0,0,.6)}
+  #hud{position:fixed;top:0;left:0;right:0;z-index:5;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;font-weight:800;text-shadow:0 2px 4px rgba(0,0,0,.6)}
   #hud .grp{display:flex;flex-direction:column;gap:6px}
   #hud .pill{display:flex;align-items:center;gap:7px;background:rgba(14,10,20,.45);border-radius:999px;padding:5px 13px;font-size:clamp(14px,3.8vw,19px)}
   #hud .pill img{width:20px;height:20px}
@@ -64,20 +52,15 @@
   #missionHud .md{font-size:14px;color:#fff;margin:2px 0 6px;font-weight:800}
   #missionHud .bar{height:8px;border-radius:6px;background:rgba(255,255,255,.16);overflow:hidden}
   #missionHud .fill{height:100%;width:0;background:linear-gradient(90deg,#5ad6ff,#7CFF8A);transition:width .2s}
-  #pauseBtn{position:fixed;top:12px;right:12px;z-index:6;pointer-events:auto;width:44px;height:44px;border-radius:12px;
-    background:rgba(14,10,20,.5);border:1px solid rgba(255,255,255,.18);color:#fff;font-size:18px;cursor:pointer}
-  .toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:7;pointer-events:none;
-    background:rgba(20,14,28,.82);border:1px solid rgba(255,210,63,.5);color:#fff;padding:10px 20px;border-radius:999px;
-    font-weight:800;font-size:clamp(14px,3.8vw,18px);opacity:0;transition:opacity .25s,transform .25s}
+  #pauseBtn{position:fixed;top:12px;right:12px;z-index:6;pointer-events:auto;width:44px;height:44px;border-radius:12px;background:rgba(14,10,20,.5);border:1px solid rgba(255,255,255,.18);color:#fff;font-size:18px;cursor:pointer}
+  .toast{position:fixed;left:50%;top:20%;transform:translateX(-50%);z-index:7;pointer-events:none;background:rgba(20,14,28,.82);border:1px solid rgba(255,210,63,.5);color:#fff;padding:10px 20px;border-radius:999px;font-weight:800;font-size:clamp(14px,3.8vw,18px);opacity:0;transition:opacity .25s,transform .25s}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
-  #introHint{position:fixed;left:50%;top:30%;transform:translateX(-50%);z-index:7;pointer-events:none;text-align:center}
+  #introHint{position:fixed;left:50%;top:26%;transform:translateX(-50%);z-index:7;pointer-events:none;text-align:center}
   #introHint .h1{font-size:clamp(22px,6vw,40px);font-weight:900;color:#fff;text-shadow:0 3px 0 #7a3000,0 0 18px rgba(255,159,26,.6)}
-  #introHint .h2{font-size:clamp(13px,3.6vw,18px);color:#ffe9c2;margin-top:6px;font-weight:700}
+  #introHint .h2{font-size:clamp(13px,3.4vw,18px);color:#ffe9c2;margin-top:6px;font-weight:700;max-width:560px;margin-left:auto;margin-right:auto}
   #introHint .pulse{display:inline-block;animation:tap 1s ease-in-out infinite}
   @keyframes tap{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-  #banner{position:fixed;left:50%;top:38%;transform:translate(-50%,0) scale(.6);z-index:8;pointer-events:none;
-    font-size:clamp(30px,8vw,64px);font-weight:900;color:#fff;text-align:center;opacity:0;
-    text-shadow:0 4px 0 #1a6b2a,0 0 30px rgba(124,255,138,.7)}
+  #banner{position:fixed;left:50%;top:34%;transform:translate(-50%,0) scale(.6);z-index:8;pointer-events:none;font-size:clamp(30px,8vw,64px);font-weight:900;color:#fff;text-align:center;opacity:0;text-shadow:0 4px 0 #1a6b2a,0 0 30px rgba(124,255,138,.7)}
   #banner.show{animation:bannerPop 1.6s ease-out forwards}
   @keyframes bannerPop{0%{opacity:0;transform:translate(-50%,18px) scale(.6)}18%{opacity:1;transform:translate(-50%,0) scale(1.08)}30%{transform:translate(-50%,0) scale(1)}78%{opacity:1}100%{opacity:0;transform:translate(-50%,-18px) scale(1)}}
   .muteWrap{position:fixed;bottom:12px;right:12px;z-index:6}
@@ -107,16 +90,16 @@
 <div class="toast" id="toast"></div>
 <div id="banner"></div>
 <div id="introHint" class="hidden">
-  <div class="h1"><span class="pulse">&#128071;</span> Tap &amp; HOLD to fly</div>
-  <div class="h2">Release to drop gently &middot; you can&rsquo;t crash yet &mdash; get a feel for it!</div>
+  <div class="h1"><span class="pulse">&#128071;</span> TAP to jump</div>
+  <div class="h2">Tap again in the air to <b>double-jump</b> &middot; hold near a glowing vine and the monkey&rsquo;s tail will <b>swing</b> you across</div>
 </div>
 
 <div class="overlay" id="menu">
   <span class="badge">JUNGLE LAB BREAKOUT</span>
-  <img class="hero-img" src="assets/monkeycat.svg" alt="MonkeyCat"/>
+  <img class="hero-img" src="assets/monkeycat.svg" alt="MonkeyCat: a cat with a monkey riding on its back"/>
   <h1 class="title">Monkey<span class="k">Cat</span></h1>
   <div class="ribbon">Jetpack Mischief</div>
-  <p class="sub">A lab-spliced cat-monkey grabs a prototype jetpack and bolts for the jungle. Hold to fly, dodge the zappers, and hoard every banana-coin.</p>
+  <p class="sub">A scrappy cat and the monkey on its back bolt out of the jungle lab. The cat runs and leaps; the monkey&rsquo;s tail grabs vines to swing them over pits. Jump, swing, and grab every banana-coin.</p>
   <div class="row">
     <button class="btn" id="playBtn">&#9654; Play</button>
     <button class="btn sec" id="howBtn">How to play</button>
@@ -126,20 +109,21 @@
     <div class="stat"><div class="n" id="mCoins">0</div><div class="l">Total Coins</div></div>
     <div class="stat"><div class="n" id="mLevel">1</div><div class="l">Best Level</div></div>
   </div>
-  <div class="small">Tap &amp; hold the screen (or hold SPACE / mouse) to fire the jetpack.</div>
+  <div class="small">Tap the screen / click / SPACE to jump. Tap again to double-jump.</div>
 </div>
 
 <div class="overlay hidden" id="howto">
   <h1 class="title" style="font-size:clamp(28px,6vw,48px)">How to Play</h1>
   <div class="card how">
-    <span class="big">&#128075; It&rsquo;s simple: hold to go up, let go to come down.</span>
-    <p>&#128640; <b>Hold</b> anywhere on the screen (or hold the <b>mouse</b>, <b>SPACE</b>, or <b>&uarr;</b>) to fire the jetpack and rise. <b>Let go</b> to drift down. That&rsquo;s the whole control &mdash; just height.</p>
-    <p>&#127820; Fly through <b>banana-coins</b> to score and bank coins.</p>
-    <p>&#9889; Avoid <b>zappers</b>, <b>laser gates</b>, and <b>missiles</b>. One hit ends the run.</p>
-    <p>&#128737;&#65039; Grab power-ups: <b>Shield</b> takes one hit for you, <b>Magnet</b> pulls coins in, <b>Overcharge</b> makes you briefly unstoppable.</p>
-    <p>&#127937; <b>Level 1 is a gentle warm-up</b> &mdash; slow, wide gaps, and you can&rsquo;t crash for the first few seconds. Clear each level to fly faster and face tougher obstacles.</p>
+    <span class="big">&#128008;&#8205;&#11014;&#65039; The cat runs on its own &mdash; you control the jumps.</span>
+    <p>&#11014;&#65039; <b>Tap</b> (screen, mouse, SPACE, or &uarr;) to <b>jump</b>. Hold a touch a touch longer for a higher jump.</p>
+    <p>&#128640; <b>Tap again in the air</b> to <b>double-jump</b> &mdash; the monkey flips for an extra boost.</p>
+    <p>&#129446; Over a wide pit, a <b>glowing vine</b> hangs down. <b>Hold</b> as you reach it and the monkey&rsquo;s <b>tail grabs on and swings</b> you across &mdash; let go to fling forward.</p>
+    <p>&#127820; Grab <b>banana-coins</b>. Jump <b>over</b> crates and zappers; <b>don&rsquo;t</b> jump into hanging zappers &mdash; run under them.</p>
+    <p>&#128737;&#65039; Power-ups: <b>Shield</b> takes one hit, <b>Magnet</b> pulls coins in, <b>Overcharge</b> makes you briefly unstoppable.</p>
+    <p>&#127937; <b>Level 1 is an easy warm-up.</b> Each level you clear gets faster and adds a new challenge (double-jump gaps, overhead hazards, then tail-swings).</p>
   </div>
-  <div class="row"><button class="btn" id="howBack">Let&rsquo;s fly</button></div>
+  <div class="row"><button class="btn" id="howBack">Let&rsquo;s go</button></div>
 </div>
 
 <div class="overlay hidden" id="pause">
